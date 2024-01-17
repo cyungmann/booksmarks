@@ -1,16 +1,9 @@
 import { useState } from 'react';
 import { Sema } from 'async-sema';
+import { assert } from 'console';
+import extractDocumentInfo from 'extract-document-info';
 
-interface AnnotatedBookmarkTreeNode {
-  originalNode: chrome.bookmarks.BookmarkTreeNode;
-  newChildren?: AnnotatedBookmarkTreeNode[];
-  numRatings?: number;
-  rating?: number;
-  title?: string;
-  is404?: boolean;
-}
-
-function IndexPopup() {
+const IndexPopup = () => {
   const [data, setData] = useState('');
 
   const fixup = async () => {
@@ -44,6 +37,39 @@ function IndexPopup() {
     };
   
     await removeDupes(booksNode);
+  };
+
+  const isAmazon = (url?: string) => url?.startsWith('https://www.amazon.com');
+
+  const organizeSelectedTabs = async () => {
+    const tabs = await chrome.tabs.query({lastFocusedWindow: true, highlighted: true});
+
+    interface AnnotatedTab {
+      originalTab: chrome.tabs.Tab;
+      numRatings?: number;
+      rating?: number;
+      title?: string;
+      is404?: boolean;
+    };
+
+    const annotatedTabs: AnnotatedTab[] = await Promise.all(tabs.map(async tab => {
+      if (!isAmazon(tab.url))
+        return { originalTab: tab };
+
+      if (tab.title === 'Page Not Found')
+        return { originalTab: tab, is404: true };
+
+      const response = await chrome.tabs.sendMessage<string, { numRatings: number, rating: number, title: string }>(tab.id, 'extractDocumentInfo');
+      return { originalTab: tab, ...response };
+    }));
+
+    assert(tabs.length === annotatedTabs.length);
+
+    alert(JSON.stringify(annotatedTabs));
+  };
+
+  const organizeWindow = async () => {
+
   };
 
   const organizeBookmarks = async () => {
@@ -83,11 +109,18 @@ function IndexPopup() {
 
     // return;
 
+    interface AnnotatedBookmarkTreeNode {
+      originalNode: chrome.bookmarks.BookmarkTreeNode;
+      newChildren?: AnnotatedBookmarkTreeNode[];
+      numRatings?: number;
+      rating?: number;
+      title?: string;
+      is404?: boolean;
+    };
+
     const semaphore = new Sema(5);
 
     const processAsync = async (node: chrome.bookmarks.BookmarkTreeNode): Promise<AnnotatedBookmarkTreeNode> => {
-      const isAmazon = (url?: string) => url?.startsWith('https://www.amazon.com');
-
       if (node.url == null && node.children != null) {
         const children = await Promise.all(node.children.map(processAsync));
 
@@ -102,13 +135,16 @@ function IndexPopup() {
           return 0;
         };
 
-        const compareAmazon = (lhs: AnnotatedBookmarkTreeNode, rhs: AnnotatedBookmarkTreeNode): -1 | 0 | 1 => {
-          if (isAmazon(lhs.originalNode.url)) {
-            if (isAmazon(rhs.originalNode.url))
+        const compareAmazon = (lhs: AnnotatedBookmarkTreeNode | string, rhs: AnnotatedBookmarkTreeNode | string): -1 | 0 | 1 => {
+          const lhsUrl = typeof lhs === 'string' ? lhs : lhs.originalNode.url;
+          const rhsUrl = typeof rhs === 'string' ? rhs : rhs.originalNode.url;
+
+          if (isAmazon(lhsUrl)) {
+            if (isAmazon(rhsUrl))
               return 0;
             return 1;
           }
-          if (isAmazon(rhs.originalNode.url))
+          if (isAmazon(rhsUrl))
             return -1;
           return 0;
         };
@@ -331,6 +367,8 @@ function IndexPopup() {
         View Docs
       </a>
       <button onClick={organizeBookmarks}>Organize Bookmarks!</button>
+      <button onClick={organizeSelectedTabs}>Organize Selected Tabs!</button>
+      <button onClick={organizeWindow}>Organize Window!</button>
       <button onClick={fixup}>Fixup!</button>
     </div>
   );

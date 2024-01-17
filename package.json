@@ -27,10 +27,12 @@
   },
   "manifest": {
     "permissions": [
-      "bookmarks"
+      "bookmarks",
+      "scripting",
+      "tabs"
     ],
     "host_permissions": [
-      "https://www.amazon.com/*"
+      "<all_urls>"
     ]
   }
 }
