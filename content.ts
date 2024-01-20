@@ -1,9 +1,9 @@
 import type { PlasmoCSConfig } from 'plasmo';
-import extractDocumentInfo from 'extract-document-info';
+import extractBookData from 'extract-book-data';
 
 chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
-  if (message === 'extractDocumentInfo')
-    sendResponse(extractDocumentInfo(document));
+  if (message === 'extractBookData')
+    sendResponse(extractBookData(document));
 })
 
 export const config: PlasmoCSConfig = {
