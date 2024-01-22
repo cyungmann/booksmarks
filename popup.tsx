@@ -264,9 +264,7 @@ const IndexPopup = () => {
         bookData.title != null &&
         bookData.title !== '' &&
         bookData.numRatings != null &&
-        bookData.numRatings !== 0 &&
-        bookData.rating != null &&
-        bookData.rating !== 0
+        bookData.rating != null
       );
     };
 
@@ -306,6 +304,14 @@ const IndexPopup = () => {
     });
     await organizeTabs(tabs);
   };
+
+  const organizeUnselectedTabs = async () => {
+    const tabs = await chrome.tabs.query({
+      lastFocusedWindow: true,
+      highlighted: false,
+    });
+    await organizeTabs(tabs);
+  }
 
   const organizeWindow = async () => {
     const tabs = await chrome.tabs.query({ lastFocusedWindow: true });
@@ -464,6 +470,7 @@ const IndexPopup = () => {
       </a>
       <button onClick={organizeBookmarks}>Organize Bookmarks!</button>
       <button onClick={organizeSelectedTabs}>Organize Selected Tabs!</button>
+      <button onClick={organizeUnselectedTabs}>Organize Unselected Tabs!</button>
       <button onClick={organizeWindow}>Organize Window!</button>
       <button onClick={fixup}>Fixup!</button>
     </div>
