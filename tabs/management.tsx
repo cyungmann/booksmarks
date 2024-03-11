@@ -161,13 +161,6 @@ const Management = () => {
     await processNode(nodeTree);
   };
 
-  const handleFetchBookData = async (id: string): Promise<void> => {
-    const node = (await chrome.bookmarks.get(id))[0];
-    if (node.url == null) return;
-    const bookData = await fetchBookData(node.url, new Sema(1));
-    alert(JSON.stringify(bookData, null, 2));
-  };
-
   return (
     <>
       <ul ref={randomWalkResultsRef}>
