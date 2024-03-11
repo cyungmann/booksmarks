@@ -1,6 +1,5 @@
-import { Sema } from 'async-sema';
 import fetchBooksNode from 'fetch-books-node';
-import { backupFolder, fetchBookData, organizeFolder } from 'organize';
+import { backupFolder, organizeFolder } from 'organize';
 import { useEffect, useRef, useState } from 'react';
 
 const BookmarkNode = ({
