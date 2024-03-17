@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 
 const BookmarkNode = ({
   node,
+  refMap,
   onOrganizeFolder = () => {},
   onRandomWalk = () => {},
   onRemove = () => {},
   onOpenAllInNewWindow = () => {},
 }: {
   node: chrome.bookmarks.BookmarkTreeNode;
+  refMap: Map<string, HTMLLIElement>;
   onOrganizeFolder?: (id: string) => void;
   onRandomWalk?: (id: string) => void;
   onRemove?: (id: string) => void;
@@ -17,7 +19,12 @@ const BookmarkNode = ({
 }) => {
   return (
     node != null && (
-      <li key={node.id}>
+      <li key={node.id} ref={(element: HTMLLIElement | null) => {
+        if (element)
+          refMap.set(node.id, element);
+        else
+          refMap.delete(node.id);
+      }}>
         {node.title}{' '}
         {node.url == null && (
           <>
@@ -35,6 +42,7 @@ const BookmarkNode = ({
           {node.children?.map((c) => (
             <BookmarkNode
               node={c}
+              refMap={refMap}
               key={c.id}
               onOrganizeFolder={onOrganizeFolder}
               onRandomWalk={onRandomWalk}
@@ -50,12 +58,14 @@ const BookmarkNode = ({
 
 const BookmarkList = ({
   root,
+  refMap,
   onOrganizeFolder = () => {},
   onRandomWalk = () => {},
   onRemove = () => {},
   onOpenAllInNewWindow = () => {},
 }: {
   root: chrome.bookmarks.BookmarkTreeNode;
+  refMap: Map<string, HTMLLIElement>;
   onOrganizeFolder?: (id: string) => void;
   onRandomWalk?: (id: string) => void;
   onRemove?: (id: string) => void;
@@ -66,6 +76,7 @@ const BookmarkList = ({
       <ul>
         <BookmarkNode
           node={root}
+          refMap={refMap}
           onOrganizeFolder={onOrganizeFolder}
           onRandomWalk={onRandomWalk}
           onRemove={onRemove}
@@ -79,6 +90,13 @@ const BookmarkList = ({
 const Management = () => {
   const [booksNode, setBooksNode] =
     useState<chrome.bookmarks.BookmarkTreeNode | null>(null);
+
+  const refMap = useRef<Map<string, HTMLLIElement> | null>(null);
+  const getMap = () => {
+    if (!refMap.current)
+      refMap.current = new Map<string, HTMLLIElement>();
+    return refMap.current;
+  }
 
   const randomWalkResultsRef = useRef<HTMLUListElement>(null);
 
@@ -160,15 +178,25 @@ const Management = () => {
     await processNode(nodeTree);
   };
 
+  const handleRandomWalkResultClick = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>, nodeId: string) => {
+    e.preventDefault();
+    const el = getMap().get(nodeId);
+    el?.scrollIntoView();
+    return false;
+  };
+
   return (
     <>
       <ul ref={randomWalkResultsRef}>
         {randomWalkResults.map((f) => (
-          <li key={f.id}>{f.title}</li>
+          <li key={f.id}>
+            <a href="#" onClick={e => handleRandomWalkResultClick(e, f.id)}>{f.title}</a>
+          </li>
         ))}
       </ul>
       <BookmarkList
         root={booksNode}
+        refMap={getMap()}
         onOrganizeFolder={handleOrganizeFolder}
         onRandomWalk={handleRandomWalk}
         onRemove={handleRemove}
