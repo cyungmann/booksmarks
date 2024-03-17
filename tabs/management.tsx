@@ -25,9 +25,9 @@ const BookmarkNode = ({
         else
           refMap.delete(node.id);
       }}>
-        {node.title}{' '}
-        {node.url == null && (
+        {node.url == null ? (
           <>
+            {node.title}{' '}
             <button onClick={() => onOrganizeFolder(node.id)}>
               Organize Folder
             </button>
@@ -35,6 +35,11 @@ const BookmarkNode = ({
             <button onClick={() => onOpenAllInNewWindow(node.id)}>
               Open All In New Window
             </button>
+          </>
+        ) :
+        (
+          <>
+            <a href={node.url}>{node.title}</a>{' '}
           </>
         )}
         <button onClick={() => onRemove(node.id)}>Remove</button>
