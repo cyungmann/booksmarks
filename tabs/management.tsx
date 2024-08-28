@@ -9,6 +9,7 @@ const BookmarkNode = ({
   onRandomWalk = () => {},
   onRemove = () => {},
   onOpenAllInNewWindow = () => {},
+  onFixTitles = () => {}
 }: {
   node: chrome.bookmarks.BookmarkTreeNode;
   refMap: Map<string, HTMLLIElement>;
@@ -16,6 +17,7 @@ const BookmarkNode = ({
   onRandomWalk?: (id: string) => void;
   onRemove?: (id: string) => void;
   onOpenAllInNewWindow?: (id: string) => void;
+  onFixTitles?: (id: string) => void;
 }) => {
   return (
     node != null && (
@@ -35,6 +37,7 @@ const BookmarkNode = ({
             <button onClick={() => onOpenAllInNewWindow(node.id)}>
               Open All In New Window
             </button>
+            <button onClick={() => onFixTitles(node.id)}>Fix Titles</button>
           </>
         ) :
         (
@@ -53,6 +56,7 @@ const BookmarkNode = ({
               onRandomWalk={onRandomWalk}
               onRemove={onRemove}
               onOpenAllInNewWindow={onOpenAllInNewWindow}
+              onFixTitles={onFixTitles}
             />
           ))}
         </ul>
@@ -68,6 +72,7 @@ const BookmarkList = ({
   onRandomWalk = () => {},
   onRemove = () => {},
   onOpenAllInNewWindow = () => {},
+  onFixTitles = () => {},
 }: {
   root: chrome.bookmarks.BookmarkTreeNode;
   refMap: Map<string, HTMLLIElement>;
@@ -75,6 +80,7 @@ const BookmarkList = ({
   onRandomWalk?: (id: string) => void;
   onRemove?: (id: string) => void;
   onOpenAllInNewWindow?: (id: string) => void;
+  onFixTitles?: (id: string) => void;
 }) => {
   return (
     root != null && (
@@ -86,6 +92,7 @@ const BookmarkList = ({
           onRandomWalk={onRandomWalk}
           onRemove={onRemove}
           onOpenAllInNewWindow={onOpenAllInNewWindow}
+          onFixTitles={onFixTitles}
         />
       </ul>
     )
@@ -123,7 +130,6 @@ const Management = () => {
   useEffect(() => {
     (async () => {
       const node = await fetchBooksNode();
-      handleRandomWalk(node.id);
       setBooksNode(node);
     })();
   }, []);
@@ -136,7 +142,7 @@ const Management = () => {
 
   const handleRandomWalk = async (folderId: string): Promise<void> => {
     const node = (await chrome.bookmarks.getSubTree(folderId))[0];
-    let randomResults: chrome.bookmarks.BookmarkTreeNode[] = new Array(20);
+    let randomResults: chrome.bookmarks.BookmarkTreeNode[] = new Array(10);
     for (let i = 0; i < randomResults.length; ++i)
       randomResults[i] = randomWalk(node);
     const seenIds = new Set<string>();
@@ -183,6 +189,34 @@ const Management = () => {
     await processNode(nodeTree);
   };
 
+  const handleFixTitles = async (folderId: string): Promise<void> => {
+    console.warn('fixing titles!');
+    await backupFolder(folderId);
+    const nodeTree = (await chrome.bookmarks.getSubTree(folderId))[0];
+    
+    const processNode = async(
+      node: chrome.bookmarks.BookmarkTreeNode
+    ): Promise<void> => {
+      for (const c of node.children || []) {
+        if (c.url != null) {
+          const response = await fetch(c.url);
+          const html = await response.text();
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          console.warn(doc.head.title);
+          await chrome.bookmarks.update(c.id, {
+            title: doc.head.title,
+          });
+        } else {
+          await processNode(c);
+        }
+      }
+    }
+    await processNode(nodeTree);
+
+    setBooksNode(await fetchBooksNode());
+  };
+
   const handleRandomWalkResultClick = (e: React.MouseEvent<HTMLAnchorElement, MouseEvent>, nodeId: string) => {
     e.preventDefault();
     const el = getMap().get(nodeId);
@@ -206,6 +240,7 @@ const Management = () => {
         onRandomWalk={handleRandomWalk}
         onRemove={handleRemove}
         onOpenAllInNewWindow={handleOpenAllInNewWindow}
+        onFixTitles={handleFixTitles}
       />
     </>
   );
