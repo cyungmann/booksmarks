@@ -1,6 +1,13 @@
+import '@fontsource/roboto/300.css';
+import '@fontsource/roboto/400.css';
+import '@fontsource/roboto/500.css';
+import '@fontsource/roboto/700.css';
 import fetchBooksNode from 'fetch-books-node';
 import { backupFolder, organizeFolder } from 'organize';
 import { useEffect, useRef, useState } from 'react';
+import { SimpleTreeView } from '@mui/x-tree-view/SimpleTreeView';
+import { TreeItem } from '@mui/x-tree-view/TreeItem';
+import type {} from '@mui/x-tree-view/themeAugmentation';
 
 const BookmarkNode = ({
   node,
@@ -21,7 +28,7 @@ const BookmarkNode = ({
 }) => {
   return (
     node != null && (
-      <li key={node.id} ref={(element: HTMLLIElement | null) => {
+      <TreeItem itemId={node.id} label={node.title} ref={(element: HTMLLIElement | null) => {
         if (element)
           refMap.set(node.id, element);
         else
@@ -46,7 +53,7 @@ const BookmarkNode = ({
           </>
         )}
         <button onClick={() => onRemove(node.id)}>Remove</button>
-        <ul>
+        <SimpleTreeView>
           {node.children?.map((c) => (
             <BookmarkNode
               node={c}
@@ -59,8 +66,8 @@ const BookmarkNode = ({
               onFixTitles={onFixTitles}
             />
           ))}
-        </ul>
-      </li>
+        </SimpleTreeView>
+      </TreeItem>
     )
   );
 };
@@ -84,7 +91,7 @@ const BookmarkList = ({
 }) => {
   return (
     root != null && (
-      <ul>
+      <SimpleTreeView>
         <BookmarkNode
           node={root}
           refMap={refMap}
@@ -94,7 +101,7 @@ const BookmarkList = ({
           onOpenAllInNewWindow={onOpenAllInNewWindow}
           onFixTitles={onFixTitles}
         />
-      </ul>
+      </SimpleTreeView>
     )
   );
 };
