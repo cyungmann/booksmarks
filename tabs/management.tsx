@@ -203,9 +203,12 @@ const Management = () => {
           const html = await response.text();
           const parser = new DOMParser();
           const doc = parser.parseFromString(html, 'text/html');
-          console.warn(doc.head.title);
+          const productTitle = doc.querySelector<HTMLSpanElement>('#productTitle').innerText.trim();
+          const authors = Array.from(doc.querySelectorAll<HTMLSpanElement>('#bylineInfo>span.author')).map(x => x.innerText.replace(/\s+/gm, ' ').trim()).join(' ');
+          const newTitle = `"${productTitle}" by ${authors}`;
+          console.warn(newTitle);
           await chrome.bookmarks.update(c.id, {
-            title: doc.head.title,
+            title: newTitle,
           });
         } else {
           await processNode(c);
