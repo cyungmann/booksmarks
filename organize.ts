@@ -268,7 +268,7 @@ export const backupFolder = async (folderId: string) => {
   const folderNode = (await chrome.bookmarks.getSubTree(folderId))[0];
 
   const backupNode = await chrome.bookmarks.create({
-    index: folderNode.index,
+    index: folderNode.index + 1,
     parentId: folderNode.parentId,
     title: `${folderNode.title} (${new Date().toISOString()})`,
   });
@@ -325,29 +325,28 @@ export const organizeFolder = async (folderId: string) => {
 
   const originalFolderNode = (await chrome.bookmarks.getSubTree(folderId))[0];
 
-  const processedFolderNode = await processAsync(originalFolderNode);
-
-  const removeDupes = (node: AnnotatedBookmarkTreeNode) => {
-    if (node.newChildren?.length > 0) {
-      node.newChildren = node.newChildren.filter((val, pos, ary) => {
-        if (pos === 0) return true;
-        const lastChild = ary[pos - 1];
-        if (
-          val.originalUrl != null &&
-          val.originalUrl === lastChild.originalUrl
-        ) {
+  const removeDupes = (node: chrome.bookmarks.BookmarkTreeNode) => {
+    if (node.children?.length > 0) {
+      const seenUrls = new Set<string>();
+      node.children = node.children.filter(val => {
+        if (val.url == null)
+          return true;
+        const matches = val.url.match(/.*?\/dp\/\w+(?=\/?)/);
+        const normalizedUrl = matches == null ? val.url : matches[0];
+        if (seenUrls.has(normalizedUrl))
           return false;
-        }
+        seenUrls.add(normalizedUrl);
         return true;
       });
 
-      for (const child of node.newChildren) {
+      for (const child of node.children) {
         removeDupes(child);
       }
     }
+    return node;
   };
 
-  removeDupes(processedFolderNode);
+  const processedFolderNode = await processAsync(removeDupes(originalFolderNode));
 
   const removeEmptyFolders = (node: AnnotatedBookmarkTreeNode) => {
     if (node.newChildren?.length > 0) {
@@ -389,4 +388,37 @@ export const organizeFolder = async (folderId: string) => {
     index: originalFolderNode.index,
   });
   await chrome.bookmarks.removeTree(originalFolderNode.id);
+};
+
+export const mergeFolders = async (newTitle: string, ...folderIds: string[]) => {
+  const folderNodes = await Promise.all(folderIds.map(folderId => chrome.bookmarks.get(folderId).then(x => x[0])));
+  console.warn({folderNodes});
+  const firstFolderNode = folderNodes.sort((lhs, rhs) => lhs.index - rhs.index)[0];
+  console.warn({firstFolderNode});
+  const newRootNode = await chrome.bookmarks.create({
+    title: newTitle,
+    index: firstFolderNode.index,
+    parentId: firstFolderNode.parentId,
+  });
+  
+  const processNode = async (parentNodeId: string, node: chrome.bookmarks.BookmarkTreeNode) => {
+    const newNode = await chrome.bookmarks.create({
+      parentId: parentNodeId,
+      title: node.title,
+      url: node.url,
+    });
+    if (node.url == null) { // it's a folder
+      const children = await chrome.bookmarks.getChildren(node.id);
+      for (const child of children) {
+        await processNode(newNode.id, child);
+      }
+    }
+  };
+
+  for (const folderNode of folderNodes) {
+    const children = await chrome.bookmarks.getChildren(folderNode.id);
+    for (const child of children) {
+      await processNode(newRootNode.id, child);
+    }
+  }
 };
