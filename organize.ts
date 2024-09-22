@@ -294,36 +294,6 @@ export const backupFolder = async (folderId: string) => {
 };
 
 export const organizeFolder = async (folderId: string) => {
-  const semaphore = new Sema(5);
-
-  const processNode = async (
-    node: chrome.bookmarks.BookmarkTreeNode,
-  ): Promise<AnnotatedBookmarkTreeNode> => {
-    if (node.url == null && node.children != null) { // node is a folder
-      const children = await Promise.all(node.children.map(processNode));
-      children.sort(compareAnnotated);
-      return {
-        originalTitle: node.title,
-        originalUrl: node.url,
-        newChildren: children,
-      };
-    }
-
-    if (!isAmazon(node.url)) {
-      return {
-        originalTitle: node.title,
-        originalUrl: node.url,
-      };
-    }
-
-    const bookData = await fetchBookData(node.url, semaphore);
-    return {
-      originalTitle: node.title,
-      originalUrl: node.url,
-      ...bookData,
-    };
-  };
-
   const removeDupes = (node: chrome.bookmarks.BookmarkTreeNode) => {
     if (node.children?.length > 0) {
       const seenUrls = new Set<string>();
@@ -346,7 +316,7 @@ export const organizeFolder = async (folderId: string) => {
   };
 
   const removeEmptyFolders = (node: chrome.bookmarks.BookmarkTreeNode) => {
-    if (node.children?.length > 0) {
+    if (node.children != null && node.children.length > 0) {
       node.children = node.children.filter((val) => {
         return (val.url != null || (val.children != null && val.children.length > 0));
       });
@@ -358,8 +328,74 @@ export const organizeFolder = async (folderId: string) => {
     return node;
   };
 
-  const originalFolderNode = (await chrome.bookmarks.getSubTree(folderId))[0];
-  const processedFolderNode = await processNode(removeDupes(removeEmptyFolders(originalFolderNode)));
+  const originalFolderNode = removeDupes(removeEmptyFolders((await chrome.bookmarks.getSubTree(folderId))[0]));
+
+  let annotatedOriginalFolderNode: AnnotatedBookmarkTreeNode;
+  if (originalFolderNode.url == null && originalFolderNode.children != null) {
+    const semaphore = new Sema(5);
+
+    const mapNested = (node: chrome.bookmarks.BookmarkTreeNode): AnnotatedBookmarkTreeNode => {
+      if (node.url == null && node.children != null) { // it's a folder
+        return {
+          originalTitle: node.title,
+          is404: undefined,
+          newChildren: node.children.map(mapNested),
+          numRatings: undefined,
+          originalUrl: node.url,
+          rating: undefined,
+          title: node.title,
+        };
+      }
+      return {
+        originalTitle: node.title,
+        is404: undefined,
+        newChildren: undefined,
+        numRatings: undefined,
+        originalUrl: node.url,
+        rating: undefined,
+        title: node.title,
+      };
+    };
+
+    const annotatedChildren: AnnotatedBookmarkTreeNode[] = await Promise.all(originalFolderNode.children.map(async child => {
+      if (child.url == null && child.children != null) { // it's a folder
+        return {
+          originalTitle: child.title,
+          originalUrl: undefined,
+          is404: undefined,
+          numRatings: undefined,
+          rating: undefined,
+          title: child.title,
+          newChildren: child.children.map(mapNested),
+        };
+      }
+      
+      if (!isAmazon(child.url)) {
+        return {
+          originalTitle: child.title,
+          originalUrl: child.url,
+        };
+      }
+
+      const bookData = await fetchBookData(child.url, semaphore);
+      return {
+        originalTitle: child.title,
+        originalUrl: child.url,
+        ...bookData,
+      };
+    }));
+    annotatedOriginalFolderNode = {
+      originalTitle: originalFolderNode.title,
+      is404: undefined,
+      newChildren: annotatedChildren.sort(compareAnnotated),
+      numRatings: undefined,
+      originalUrl: undefined,
+      rating: undefined,
+      title: originalFolderNode.title,
+    };
+  } else {
+    throw new Error('Expected a folder, not a bookmark!');
+  }
 
   const createBookmark = async (
     node: AnnotatedBookmarkTreeNode,
@@ -376,7 +412,7 @@ export const organizeFolder = async (folderId: string) => {
     return newNode;
   };
 
-  const newNode = await createBookmark(processedFolderNode, originalFolderNode.parentId);
+  const newNode = await createBookmark(annotatedOriginalFolderNode, originalFolderNode.parentId);
   await chrome.bookmarks.move(newNode.id, {
     parentId: originalFolderNode.parentId,
     index: originalFolderNode.index,
