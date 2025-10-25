@@ -15,8 +15,8 @@ const extractBookData: (document: Document) => BookData = (
   let numRatings = 0;
   if (numRatingsSpan != null) {
     const numRatingsMatches =
-      numRatingsSpan.innerText.match(/^([\d,]+) ratings$/);
-    if (numRatingsMatches?.length == 2)
+      numRatingsSpan.innerText.match(/^\(?([\d,]+)\)?( ratings)?$/);
+    if (numRatingsMatches?.length >= 2)
       numRatings = +numRatingsMatches[1].replaceAll(',', '');
   }
 
